@@ -1,0 +1,14 @@
+[book]
+authors = ["Eric"]
+language = "en"
+multilingual = false
+src = "src"
+title = "sched_ext Patch Series Study"
+
+auto-section-label = true
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = ""
+site-url = "/sched-ext-patch-study/"

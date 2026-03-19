@@ -1,0 +1,706 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Patch 11: sched_ext: Implement runnable task stall watchdog - sched_ext Patch Series Study</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">sched_ext Patch Series Study</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="patch-11-sched_ext-implement-runnable-task-stall-watchdog"><a class="header" href="#patch-11-sched_ext-implement-runnable-task-stall-watchdog">Patch 11: sched_ext: Implement runnable task stall watchdog</a></h1>
+<p><strong>View on Lore</strong>: <a href="https://lore.kernel.org/all/20240618212056.2833381-12-tj@kernel.org">https://lore.kernel.org/all/20240618212056.2833381-12-tj@kernel.org</a></p>
+<h2 id="commit-message"><a class="header" href="#commit-message">Commit Message</a></h2>
+<blockquote>
+<p>From: David Vernet <a href="mailto:dvernet@meta.com">dvernet@meta.com</a></p>
+</blockquote>
+<p>The most common and critical way that a BPF scheduler can misbehave is by
+failing to run runnable tasks for too long. This patch implements a
+watchdog.</p>
+<ul>
+<li>
+<p>All tasks record when they become runnable.</p>
+</li>
+<li>
+<p>A watchdog work periodically scans all runnable tasks. If any task has
+stayed runnable for too long, the BPF scheduler is aborted.</p>
+</li>
+<li>
+<p>scheduler_tick() monitors whether the watchdog itself is stuck. If so, the
+BPF scheduler is aborted.</p>
+</li>
+</ul>
+<p>Because the watchdog only scans the tasks which are currently runnable and
+usually very infrequently, the overhead should be negligible.
+scx_qmap is updated so that it can be told to stall user and/or
+kernel tasks.</p>
+<p>A detected task stall looks like the following:</p>
+<p>sched_ext: BPF scheduler "qmap" errored, disabling
+sched_ext: runnable task stall (dbus-daemon[953] failed to run for 6.478s)
+scx_check_timeout_workfn+0x10e/0x1b0
+process_one_work+0x287/0x560
+worker_thread+0x234/0x420
+kthread+0xe9/0x100
+ret_from_fork+0x1f/0x30</p>
+<p>A detected watchdog stall:</p>
+<p>sched_ext: BPF scheduler "qmap" errored, disabling
+sched_ext: runnable task stall (watchdog failed to check in for 5.001s)
+scheduler_tick+0x2eb/0x340
+update_process_times+0x7a/0x90
+tick_sched_timer+0xd8/0x130
+__hrtimer_run_queues+0x178/0x3b0
+hrtimer_interrupt+0xfc/0x390
+__sysvec_apic_timer_interrupt+0xb7/0x2b0
+sysvec_apic_timer_interrupt+0x90/0xb0
+asm_sysvec_apic_timer_interrupt+0x1b/0x20
+default_idle+0x14/0x20
+arch_cpu_idle+0xf/0x20
+default_idle_call+0x50/0x90
+do_idle+0xe8/0x240
+cpu_startup_entry+0x1d/0x20
+kernel_init+0x0/0x190
+start_kernel+0x0/0x392
+start_kernel+0x324/0x392
+x86_64_start_reservations+0x2a/0x2c
+x86_64_start_kernel+0x104/0x109
+secondary_startup_64_no_verify+0xce/0xdb</p>
+<p>Note that this patch exposes scx_ops_error<a href="">_type</a> in kernel/sched/ext.h to
+inline scx_notify_sched_tick().</p>
+<pre><code>  being called before forward progress was guaranteed and thus could
+  lead to system lockup. Relocated.
+
+- While enabling, it was comparing msecs against jiffies without
+  conversion leading to spurious load failures on lower HZ kernels.
+  Fixed.
+
+- runnable list management is now used by core bypass logic and moved to
+  the patch implementing sched_ext core.
+
+  against SCX_WATCHDOG_MAX_TIMEOUT which is in jiffies without
+  conversion leading to spurious load failures in lower HZ kernels.
+  Fixed.
+
+  jiffies. Fix by using jiffies for everything.
+</code></pre>
+<p>Cc: Julia Lawall <a href="mailto:julia.lawall@inria.fr">julia.lawall@inria.fr</a></p>
+<h2 id="implementation-analysis"><a class="header" href="#implementation-analysis">Implementation Analysis</a></h2>
+<p>Analysis pending.</p>
+<h2 id="diff"><a class="header" href="#diff">Diff</a></h2>
+<pre><code class="language-diff">---
+ include/linux/sched/ext.h      |   1 +
+ init/init_task.c               |   1 +
+ kernel/sched/core.c            |   1 +
+ kernel/sched/ext.c             | 130 ++++++++++++++++++++++++++++++++-
+ kernel/sched/ext.h             |   2 +
+ tools/sched_ext/scx_qmap.bpf.c |  12 +++
+ tools/sched_ext/scx_qmap.c     |  12 ++-
+ 7 files changed, 153 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/sched/ext.h b/include/linux/sched/ext.h
+index c1530a7992cc..96031252436f 100644
+--- a/include/linux/sched/ext.h
++++ b/include/linux/sched/ext.h
+@@ -122,6 +122,7 @@ struct sched_ext_entity {
+ 	atomic_long_t		ops_state;
+
+ 	struct list_head	runnable_node;	/* rq-&gt;scx.runnable_list */
++	unsigned long		runnable_at;
+
+ 	u64			ddsp_dsq_id;
+ 	u64			ddsp_enq_flags;
+diff --git a/init/init_task.c b/init/init_task.c
+index c6804396fe12..8a44c932d10f 100644
+--- a/init/init_task.c
++++ b/init/init_task.c
+@@ -106,6 +106,7 @@ struct task_struct init_task __aligned(L1_CACHE_BYTES) = {
+ 		.sticky_cpu	= -1,
+ 		.holding_cpu	= -1,
+ 		.runnable_node	= LIST_HEAD_INIT(init_task.scx.runnable_node),
++		.runnable_at	= INITIAL_JIFFIES,
+ 		.ddsp_dsq_id	= SCX_DSQ_INVALID,
+ 		.slice		= SCX_SLICE_DFL,
+ 	},
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 6042ce3bfee0..f4365becdc13 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -5516,6 +5516,7 @@ void sched_tick(void)
+ 	calc_global_load_tick(rq);
+ 	sched_core_tick(rq);
+ 	task_tick_mm_cid(rq, curr);
++	scx_tick(rq);
+
+ 	rq_unlock(rq, &amp;rf);
+
+diff --git a/kernel/sched/ext.c b/kernel/sched/ext.c
+index 1f5d80df263a..3dc515b3351f 100644
+--- a/kernel/sched/ext.c
++++ b/kernel/sched/ext.c
+@@ -8,6 +8,7 @@
+
+ enum scx_consts {
+ 	SCX_DSP_DFL_MAX_BATCH		= 32,
++	SCX_WATCHDOG_MAX_TIMEOUT	= 30 * HZ,
+
+ 	SCX_EXIT_BT_LEN			= 64,
+ 	SCX_EXIT_MSG_LEN		= 1024,
+@@ -24,6 +25,7 @@ enum scx_exit_kind {
+
+ 	SCX_EXIT_ERROR = 1024,	/* runtime error, error msg contains details */
+ 	SCX_EXIT_ERROR_BPF,	/* ERROR but triggered through scx_bpf_error() */
++	SCX_EXIT_ERROR_STALL,	/* watchdog detected stalled runnable tasks */
+ };
+
+ /*
+@@ -319,6 +321,15 @@ struct sched_ext_ops {
+ 	 */
+ 	u64 flags;
+
++	/**
++	 * timeout_ms - The maximum amount of time, in milliseconds, that a
++	 * runnable task should be able to wait before being scheduled. The
++	 * maximum timeout may not exceed the default timeout of 30 seconds.
++	 *
++	 * Defaults to the maximum allowed timeout value of 30 seconds.
++	 */
++	u32 timeout_ms;
++
+ 	/**
+ 	 * name - BPF scheduler's name
+ 	 *
+@@ -472,6 +483,23 @@ struct static_key_false scx_has_op[SCX_OPI_END] =
+ static atomic_t scx_exit_kind = ATOMIC_INIT(SCX_EXIT_DONE);
+ static struct scx_exit_info *scx_exit_info;
+
++/*
++ * The maximum amount of time in jiffies that a task may be runnable without
++ * being scheduled on a CPU. If this timeout is exceeded, it will trigger
++ * scx_ops_error().
++ */
++static unsigned long scx_watchdog_timeout;
++
++/*
++ * The last time the delayed work was run. This delayed work relies on
++ * ksoftirqd being able to run to service timer interrupts, so it's possible
++ * that this work itself could get wedged. To account for this, we check that
++ * it's not stalled in the timer tick, and trigger an error if it is.
++ */
++static unsigned long scx_watchdog_timestamp = INITIAL_JIFFIES;
++
++static struct delayed_work scx_watchdog_work;
++
+ /* idle tracking */
+ #ifdef CONFIG_SMP
+ #ifdef CONFIG_CPUMASK_OFFSTACK
+@@ -1170,6 +1198,11 @@ static void set_task_runnable(struct rq *rq, struct task_struct *p)
+ {
+ 	lockdep_assert_rq_held(rq);
+
++	if (p-&gt;scx.flags &amp; SCX_TASK_RESET_RUNNABLE_AT) {
++		p-&gt;scx.runnable_at = jiffies;
++		p-&gt;scx.flags &amp;= ~SCX_TASK_RESET_RUNNABLE_AT;
++	}
++
+ 	/*
+ 	 * list_add_tail() must be used. scx_ops_bypass() depends on tasks being
+ 	 * appened to the runnable_list.
+@@ -1177,9 +1210,11 @@ static void set_task_runnable(struct rq *rq, struct task_struct *p)
+ 	list_add_tail(&amp;p-&gt;scx.runnable_node, &amp;rq-&gt;scx.runnable_list);
+ }
+
+-static void clr_task_runnable(struct task_struct *p)
++static void clr_task_runnable(struct task_struct *p, bool reset_runnable_at)
+ {
+ 	list_del_init(&amp;p-&gt;scx.runnable_node);
++	if (reset_runnable_at)
++		p-&gt;scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
+ }
+
+ static void enqueue_task_scx(struct rq *rq, struct task_struct *p, int enq_flags)
+@@ -1217,7 +1252,8 @@ static void ops_dequeue(struct task_struct *p, u64 deq_flags)
+ {
+ 	unsigned long opss;
+
+-	clr_task_runnable(p);
++	/* dequeue is always temporary, don't reset runnable_at */
++	clr_task_runnable(p, false);
+
+ 	/* acquire ensures that we see the preceding updates on QUEUED */
+ 	opss = atomic_long_read_acquire(&amp;p-&gt;scx.ops_state);
+@@ -1826,7 +1862,7 @@ static void set_next_task_scx(struct rq *rq, struct task_struct *p, bool first)
+
+ 	p-&gt;se.exec_start = rq_clock_task(rq);
+
+-	clr_task_runnable(p);
++	clr_task_runnable(p, true);
+ }
+
+ static void put_prev_task_scx(struct rq *rq, struct task_struct *p)
+@@ -2176,9 +2212,71 @@ static void reset_idle_masks(void) {}
+
+ #endif	/* CONFIG_SMP */
+
+-static void task_tick_scx(struct rq *rq, struct task_struct *curr, int queued)
++static bool check_rq_for_timeouts(struct rq *rq)
++{
++	struct task_struct *p;
++	struct rq_flags rf;
++	bool timed_out = false;
++
++	rq_lock_irqsave(rq, &amp;rf);
++	list_for_each_entry(p, &amp;rq-&gt;scx.runnable_list, scx.runnable_node) {
++		unsigned long last_runnable = p-&gt;scx.runnable_at;
++
++		if (unlikely(time_after(jiffies,
++					last_runnable + scx_watchdog_timeout))) {
++			u32 dur_ms = jiffies_to_msecs(jiffies - last_runnable);
++
++			scx_ops_error_kind(SCX_EXIT_ERROR_STALL,
++					   "%s[%d] failed to run for %u.%03us",
++					   p-&gt;comm, p-&gt;pid,
++					   dur_ms / 1000, dur_ms % 1000);
++			timed_out = true;
++			break;
++		}
++	}
++	rq_unlock_irqrestore(rq, &amp;rf);
++
++	return timed_out;
++}
++
++static void scx_watchdog_workfn(struct work_struct *work)
++{
++	int cpu;
++
++	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
++
++	for_each_online_cpu(cpu) {
++		if (unlikely(check_rq_for_timeouts(cpu_rq(cpu))))
++			break;
++
++		cond_resched();
++	}
++	queue_delayed_work(system_unbound_wq, to_delayed_work(work),
++			   scx_watchdog_timeout / 2);
++}
++
++void scx_tick(struct rq *rq)
+ {
++	unsigned long last_check;
++
++	if (!scx_enabled())
++		return;
++
++	last_check = READ_ONCE(scx_watchdog_timestamp);
++	if (unlikely(time_after(jiffies,
++				last_check + READ_ONCE(scx_watchdog_timeout)))) {
++		u32 dur_ms = jiffies_to_msecs(jiffies - last_check);
++
++		scx_ops_error_kind(SCX_EXIT_ERROR_STALL,
++				   "watchdog failed to check in for %u.%03us",
++				   dur_ms / 1000, dur_ms % 1000);
++	}
++
+ 	update_other_load_avgs(rq);
++}
++
++static void task_tick_scx(struct rq *rq, struct task_struct *curr, int queued)
++{
+ 	update_curr_scx(rq);
+
+ 	/*
+@@ -2248,6 +2346,7 @@ static int scx_ops_init_task(struct task_struct *p, struct task_group *tg, bool
+
+ 	scx_set_task_state(p, SCX_TASK_INIT);
+
++	p-&gt;scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
+ 	return 0;
+ }
+
+@@ -2326,6 +2425,7 @@ void init_scx_entity(struct sched_ext_entity *scx)
+ 	scx-&gt;sticky_cpu = -1;
+ 	scx-&gt;holding_cpu = -1;
+ 	INIT_LIST_HEAD(&amp;scx-&gt;runnable_node);
++	scx-&gt;runnable_at = jiffies;
+ 	scx-&gt;ddsp_dsq_id = SCX_DSQ_INVALID;
+ 	scx-&gt;slice = SCX_SLICE_DFL;
+ }
+@@ -2783,6 +2883,8 @@ static const char *scx_exit_reason(enum scx_exit_kind kind)
+ 		return "runtime error";
+ 	case SCX_EXIT_ERROR_BPF:
+ 		return "scx_bpf_error";
++	case SCX_EXIT_ERROR_STALL:
++		return "runnable task stall";
+ 	default:
+ 		return "&lt;UNKNOWN&gt;";
+ 	}
+@@ -2904,6 +3006,8 @@ static void scx_ops_disable_workfn(struct kthread_work *work)
+ 	if (scx_ops.exit)
+ 		SCX_CALL_OP(SCX_KF_UNLOCKED, exit, ei);
+
++	cancel_delayed_work_sync(&amp;scx_watchdog_work);
++
+ 	/*
+ 	 * Delete the kobject from the hierarchy eagerly in addition to just
+ 	 * dropping a reference. Otherwise, if the object is deleted
+@@ -3026,6 +3130,7 @@ static int scx_ops_enable(struct sched_ext_ops *ops, struct bpf_link *link)
+ {
+ 	struct scx_task_iter sti;
+ 	struct task_struct *p;
++	unsigned long timeout;
+ 	int i, ret;
+
+ 	mutex_lock(&amp;scx_ops_enable_mutex);
+@@ -3103,6 +3208,16 @@ static int scx_ops_enable(struct sched_ext_ops *ops, struct bpf_link *link)
+ 		goto err_disable;
+ 	}
+
++	if (ops-&gt;timeout_ms)
++		timeout = msecs_to_jiffies(ops-&gt;timeout_ms);
++	else
++		timeout = SCX_WATCHDOG_MAX_TIMEOUT;
++
++	WRITE_ONCE(scx_watchdog_timeout, timeout);
++	WRITE_ONCE(scx_watchdog_timestamp, jiffies);
++	queue_delayed_work(system_unbound_wq, &amp;scx_watchdog_work,
++			   scx_watchdog_timeout / 2);
++
+ 	/*
+ 	 * Lock out forks before opening the floodgate so that they don't wander
+ 	 * into the operations prematurely.
+@@ -3413,6 +3528,12 @@ static int bpf_scx_init_member(const struct btf_type *t,
+ 		if (ret == 0)
+ 			return -EINVAL;
+ 		return 1;
++	case offsetof(struct sched_ext_ops, timeout_ms):
++		if (msecs_to_jiffies(*(u32 *)(udata + moff)) &gt;
++		    SCX_WATCHDOG_MAX_TIMEOUT)
++			return -E2BIG;
++		ops-&gt;timeout_ms = *(u32 *)(udata + moff);
++		return 1;
+ 	}
+
+ 	return 0;
+@@ -3569,6 +3690,7 @@ void __init init_sched_ext_class(void)
+ 	}
+
+ 	register_sysrq_key('S', &amp;sysrq_sched_ext_reset_op);
++	INIT_DELAYED_WORK(&amp;scx_watchdog_work, scx_watchdog_workfn);
+ }
+
+
+diff --git a/kernel/sched/ext.h b/kernel/sched/ext.h
+index 9c5a2d928281..56fcdb0b2c05 100644
+--- a/kernel/sched/ext.h
++++ b/kernel/sched/ext.h
+@@ -29,6 +29,7 @@ static inline bool task_on_scx(const struct task_struct *p)
+ 	return scx_enabled() &amp;&amp; p-&gt;sched_class == &amp;ext_sched_class;
+ }
+
++void scx_tick(struct rq *rq);
+ void init_scx_entity(struct sched_ext_entity *scx);
+ void scx_pre_fork(struct task_struct *p);
+ int scx_fork(struct task_struct *p);
+@@ -66,6 +67,7 @@ static inline const struct sched_class *next_active_class(const struct sched_cla
+ #define scx_enabled()		false
+ #define scx_switched_all()	false
+
++static inline void scx_tick(struct rq *rq) {}
+ static inline void scx_pre_fork(struct task_struct *p) {}
+ static inline int scx_fork(struct task_struct *p) { return 0; }
+ static inline void scx_post_fork(struct task_struct *p) {}
+diff --git a/tools/sched_ext/scx_qmap.bpf.c b/tools/sched_ext/scx_qmap.bpf.c
+index 976a2693da71..8beae08dfdc7 100644
+--- a/tools/sched_ext/scx_qmap.bpf.c
++++ b/tools/sched_ext/scx_qmap.bpf.c
+@@ -29,6 +29,8 @@ enum consts {
+ char _license[] SEC("license") = "GPL";
+
+ const volatile u64 slice_ns = SCX_SLICE_DFL;
++const volatile u32 stall_user_nth;
++const volatile u32 stall_kernel_nth;
+ const volatile u32 dsp_batch;
+
+ u32 test_error_cnt;
+@@ -129,11 +131,20 @@ static int weight_to_idx(u32 weight)
+
+ void BPF_STRUCT_OPS(qmap_enqueue, struct task_struct *p, u64 enq_flags)
+ {
++	static u32 user_cnt, kernel_cnt;
+ 	struct task_ctx *tctx;
+ 	u32 pid = p-&gt;pid;
+ 	int idx = weight_to_idx(p-&gt;scx.weight);
+ 	void *ring;
+
++	if (p-&gt;flags &amp; PF_KTHREAD) {
++		if (stall_kernel_nth &amp;&amp; !(++kernel_cnt % stall_kernel_nth))
++			return;
++	} else {
++		if (stall_user_nth &amp;&amp; !(++user_cnt % stall_user_nth))
++			return;
++	}
++
+ 	if (test_error_cnt &amp;&amp; !--test_error_cnt)
+ 		scx_bpf_error("test triggering error");
+
+@@ -261,4 +272,5 @@ SCX_OPS_DEFINE(qmap_ops,
+ 	       .init_task		= (void *)qmap_init_task,
+ 	       .init			= (void *)qmap_init,
+ 	       .exit			= (void *)qmap_exit,
++	       .timeout_ms		= 5000U,
+ 	       .name			= "qmap");
+diff --git a/tools/sched_ext/scx_qmap.c b/tools/sched_ext/scx_qmap.c
+index 7c84ade7ecfb..6e9e9726cd62 100644
+--- a/tools/sched_ext/scx_qmap.c
++++ b/tools/sched_ext/scx_qmap.c
+@@ -19,10 +19,12 @@ const char help_fmt[] =
+ "\n"
+ "See the top-level comment in .bpf.c for more details.\n"
+ "\n"
+-"Usage: %s [-s SLICE_US] [-e COUNT] [-b COUNT] [-p] [-v]\n"
++"Usage: %s [-s SLICE_US] [-e COUNT] [-t COUNT] [-T COUNT] [-b COUNT] [-p] [-v]\n"
+ "\n"
+ "  -s SLICE_US   Override slice duration\n"
+ "  -e COUNT      Trigger scx_bpf_error() after COUNT enqueues\n"
++"  -t COUNT      Stall every COUNT'th user thread\n"
++"  -T COUNT      Stall every COUNT'th kernel thread\n"
+ "  -b COUNT      Dispatch upto COUNT tasks together\n"
+ "  -p            Switch only tasks on SCHED_EXT policy intead of all\n"
+ "  -v            Print libbpf debug messages\n"
+@@ -55,7 +57,7 @@ int main(int argc, char **argv)
+
+ 	skel = SCX_OPS_OPEN(qmap_ops, scx_qmap);
+
+-	while ((opt = getopt(argc, argv, "s:e:b:pvh")) != -1) {
++	while ((opt = getopt(argc, argv, "s:e:t:T:b:pvh")) != -1) {
+ 		switch (opt) {
+ 		case 's':
+ 			skel-&gt;rodata-&gt;slice_ns = strtoull(optarg, NULL, 0) * 1000;
+@@ -63,6 +65,12 @@ int main(int argc, char **argv)
+ 		case 'e':
+ 			skel-&gt;bss-&gt;test_error_cnt = strtoul(optarg, NULL, 0);
+ 			break;
++		case 't':
++			skel-&gt;rodata-&gt;stall_user_nth = strtoul(optarg, NULL, 0);
++			break;
++		case 'T':
++			skel-&gt;rodata-&gt;stall_kernel_nth = strtoul(optarg, NULL, 0);
++			break;
+ 		case 'b':
+ 			skel-&gt;rodata-&gt;dsp_batch = strtoul(optarg, NULL, 0);
+ 			break;
+--
+2.45.2
+
+
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../patch-study/patch-10.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../patch-study/debugging-and-monitoring.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../patch-study/patch-10.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../patch-study/debugging-and-monitoring.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

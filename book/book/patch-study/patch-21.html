@@ -1,0 +1,477 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Patch 21: sched_ext: Track tasks that are subjects of the in-flight sched_ext operation - sched_ext Patch Series Study</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">sched_ext Patch Series Study</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="patch-21-sched_ext-track-tasks-that-are-subjects-of-the-in-flight-sched_ext-operation"><a class="header" href="#patch-21-sched_ext-track-tasks-that-are-subjects-of-the-in-flight-sched_ext-operation">Patch 21: sched_ext: Track tasks that are subjects of the in-flight sched_ext operation</a></h1>
+<p><strong>View on Lore</strong>: <a href="https://lore.kernel.org/all/20240618212056.2833381-22-tj@kernel.org">https://lore.kernel.org/all/20240618212056.2833381-22-tj@kernel.org</a></p>
+<h2 id="commit-message"><a class="header" href="#commit-message">Commit Message</a></h2>
+<blockquote>
+<p>When some sched_ext operations are in flight, it is known that the subject task's
+rq lock is held throughout which makes it safe to access certain fields of
+the task - e.g. its current task_group. We want to add sched_ext kfunc helpers
+that can make use of this guarantee - e.g. to help determining the currently
+associated CPU cgroup from the task's current task_group.</p>
+</blockquote>
+<p>As it'd be dangerous call such a helper on a task which isn't rq lock
+protected, the helper should be able to verify the input task and reject
+accordingly. This patch adds sched_ext_entity.kf_tasks[] that track the
+tasks which are currently being operated on by a terminal sched_ext operation. The
+new SCX_CALL_OP_[2]TASK<a href="">_RET</a> can be used when invoking sched_ext operations
+which take tasks as arguments and the scx_kf_allowed_on_arg_tasks() can be
+used by kfunc helpers to verify the input task status.</p>
+<p>Note that as sched_ext_entity.kf_tasks[] can't handle nesting, the tracking
+is currently only limited to terminal sched_ext operations. If needed in the
+future, this restriction can be removed by moving the tracking to the task
+side with a couple per-task counters.</p>
+<h2 id="implementation-analysis"><a class="header" href="#implementation-analysis">Implementation Analysis</a></h2>
+<p>Analysis pending.</p>
+<h2 id="diff"><a class="header" href="#diff">Diff</a></h2>
+<pre><code class="language-diff">---
+ include/linux/sched/ext.h |  2 +
+ kernel/sched/ext.c        | 91 +++++++++++++++++++++++++++++++--------
+ 2 files changed, 76 insertions(+), 17 deletions(-)
+
+diff --git a/include/linux/sched/ext.h b/include/linux/sched/ext.h
+index 6f1a4977e9f8..74341dbc6a19 100644
+--- a/include/linux/sched/ext.h
++++ b/include/linux/sched/ext.h
+@@ -106,6 +106,7 @@ enum scx_kf_mask {
+
+ 	__SCX_KF_RQ_LOCKED	= SCX_KF_DISPATCH |
+ 				  SCX_KF_ENQUEUE | SCX_KF_SELECT_CPU | SCX_KF_REST,
++	__SCX_KF_TERMINAL	= SCX_KF_ENQUEUE | SCX_KF_SELECT_CPU | SCX_KF_REST,
+ };
+
+ /*
+@@ -120,6 +121,7 @@ struct sched_ext_entity {
+ 	s32			sticky_cpu;
+ 	s32			holding_cpu;
+ 	u32			kf_mask;	/* see scx_kf_mask above */
++	struct task_struct	*kf_tasks[2];	/* see SCX_CALL_OP_TASK() */
+ 	atomic_long_t		ops_state;
+
+ 	struct list_head	runnable_node;	/* rq-&gt;scx.runnable_list */
+diff --git a/kernel/sched/ext.c b/kernel/sched/ext.c
+index ce32fc6b05cd..838a96cb10ea 100644
+--- a/kernel/sched/ext.c
++++ b/kernel/sched/ext.c
+@@ -817,6 +817,47 @@ do {										\
+ 	__ret;									\
+ })
+
++/*
++ * Some kfuncs are allowed only on the tasks that are subjects of the
++ * in-progress scx_ops operation for, e.g., locking guarantees. To enforce such
++ * restrictions, the following SCX_CALL_OP_*() variants should be used when
++ * invoking scx_ops operations that take task arguments. These can only be used
++ * for non-nesting operations due to the way the tasks are tracked.
++ *
++ * kfuncs which can only operate on such tasks can in turn use
++ * scx_kf_allowed_on_arg_tasks() to test whether the invocation is allowed on
++ * the specific task.
++ */
++#define SCX_CALL_OP_TASK(mask, op, task, args...)				\
++do {										\
++	BUILD_BUG_ON((mask) &amp; ~__SCX_KF_TERMINAL);				\
++	current-&gt;scx.kf_tasks[0] = task;					\
++	SCX_CALL_OP(mask, op, task, ##args);					\
++	current-&gt;scx.kf_tasks[0] = NULL;					\
++} while (0)
++
++#define SCX_CALL_OP_TASK_RET(mask, op, task, args...)				\
++({										\
++	__typeof__(scx_ops.op(task, ##args)) __ret;				\
++	BUILD_BUG_ON((mask) &amp; ~__SCX_KF_TERMINAL);				\
++	current-&gt;scx.kf_tasks[0] = task;					\
++	__ret = SCX_CALL_OP_RET(mask, op, task, ##args);			\
++	current-&gt;scx.kf_tasks[0] = NULL;					\
++	__ret;									\
++})
++
++#define SCX_CALL_OP_2TASKS_RET(mask, op, task0, task1, args...)			\
++({										\
++	__typeof__(scx_ops.op(task0, task1, ##args)) __ret;			\
++	BUILD_BUG_ON((mask) &amp; ~__SCX_KF_TERMINAL);				\
++	current-&gt;scx.kf_tasks[0] = task0;					\
++	current-&gt;scx.kf_tasks[1] = task1;					\
++	__ret = SCX_CALL_OP_RET(mask, op, task0, task1, ##args);		\
++	current-&gt;scx.kf_tasks[0] = NULL;					\
++	current-&gt;scx.kf_tasks[1] = NULL;					\
++	__ret;									\
++})
++
+ /* @mask is constant, always inline to cull unnecessary branches */
+ static __always_inline bool scx_kf_allowed(u32 mask)
+ {
+@@ -846,6 +887,22 @@ static __always_inline bool scx_kf_allowed(u32 mask)
+ 	return true;
+ }
+
++/* see SCX_CALL_OP_TASK() */
++static __always_inline bool scx_kf_allowed_on_arg_tasks(u32 mask,
++							struct task_struct *p)
++{
++	if (!scx_kf_allowed(mask))
++		return false;
++
++	if (unlikely((p != current-&gt;scx.kf_tasks[0] &amp;&amp;
++		      p != current-&gt;scx.kf_tasks[1]))) {
++		scx_ops_error("called on a task not being operated on");
++		return false;
++	}
++
++	return true;
++}
++
+
+ /*
+  * sched_ext task iterator.
+@@ -1342,7 +1399,7 @@ static void do_enqueue_task(struct rq *rq, struct task_struct *p, u64 enq_flags,
+ 	WARN_ON_ONCE(*ddsp_taskp);
+ 	*ddsp_taskp = p;
+
+-	SCX_CALL_OP(SCX_KF_ENQUEUE, enqueue, p, enq_flags);
++	SCX_CALL_OP_TASK(SCX_KF_ENQUEUE, enqueue, p, enq_flags);
+
+ 	*ddsp_taskp = NULL;
+ 	if (p-&gt;scx.ddsp_dsq_id != SCX_DSQ_INVALID)
+@@ -1427,7 +1484,7 @@ static void enqueue_task_scx(struct rq *rq, struct task_struct *p, int enq_flags
+ 	add_nr_running(rq, 1);
+
+ 	if (SCX_HAS_OP(runnable))
+-		SCX_CALL_OP(SCX_KF_REST, runnable, p, enq_flags);
++		SCX_CALL_OP_TASK(SCX_KF_REST, runnable, p, enq_flags);
+
+ 	do_enqueue_task(rq, p, enq_flags, sticky_cpu);
+ }
+@@ -1453,7 +1510,7 @@ static void ops_dequeue(struct task_struct *p, u64 deq_flags)
+ 		BUG();
+ 	case SCX_OPSS_QUEUED:
+ 		if (SCX_HAS_OP(dequeue))
+-			SCX_CALL_OP(SCX_KF_REST, dequeue, p, deq_flags);
++			SCX_CALL_OP_TASK(SCX_KF_REST, dequeue, p, deq_flags);
+
+ 		if (atomic_long_try_cmpxchg(&amp;p-&gt;scx.ops_state, &amp;opss,
+ 					    SCX_OPSS_NONE))
+@@ -1502,11 +1559,11 @@ static void dequeue_task_scx(struct rq *rq, struct task_struct *p, int deq_flags
+ 	 */
+ 	if (SCX_HAS_OP(stopping) &amp;&amp; task_current(rq, p)) {
+ 		update_curr_scx(rq);
+-		SCX_CALL_OP(SCX_KF_REST, stopping, p, false);
++		SCX_CALL_OP_TASK(SCX_KF_REST, stopping, p, false);
+ 	}
+
+ 	if (SCX_HAS_OP(quiescent))
+-		SCX_CALL_OP(SCX_KF_REST, quiescent, p, deq_flags);
++		SCX_CALL_OP_TASK(SCX_KF_REST, quiescent, p, deq_flags);
+
+ 	if (deq_flags &amp; SCX_DEQ_SLEEP)
+ 		p-&gt;scx.flags |= SCX_TASK_DEQD_FOR_SLEEP;
+@@ -1525,7 +1582,7 @@ static void yield_task_scx(struct rq *rq)
+ 	struct task_struct *p = rq-&gt;curr;
+
+ 	if (SCX_HAS_OP(yield))
+-		SCX_CALL_OP_RET(SCX_KF_REST, yield, p, NULL);
++		SCX_CALL_OP_2TASKS_RET(SCX_KF_REST, yield, p, NULL);
+ 	else
+ 		p-&gt;scx.slice = 0;
+ }
+@@ -1535,7 +1592,7 @@ static bool yield_to_task_scx(struct rq *rq, struct task_struct *to)
+ 	struct task_struct *from = rq-&gt;curr;
+
+ 	if (SCX_HAS_OP(yield))
+-		return SCX_CALL_OP_RET(SCX_KF_REST, yield, from, to);
++		return SCX_CALL_OP_2TASKS_RET(SCX_KF_REST, yield, from, to);
+ 	else
+ 		return false;
+ }
+@@ -2091,7 +2148,7 @@ static void set_next_task_scx(struct rq *rq, struct task_struct *p, bool first)
+
+ 	/* see dequeue_task_scx() on why we skip when !QUEUED */
+ 	if (SCX_HAS_OP(running) &amp;&amp; (p-&gt;scx.flags &amp; SCX_TASK_QUEUED))
+-		SCX_CALL_OP(SCX_KF_REST, running, p);
++		SCX_CALL_OP_TASK(SCX_KF_REST, running, p);
+
+ 	clr_task_runnable(p, true);
+
+@@ -2155,7 +2212,7 @@ static void put_prev_task_scx(struct rq *rq, struct task_struct *p)
+
+ 	/* see dequeue_task_scx() on why we skip when !QUEUED */
+ 	if (SCX_HAS_OP(stopping) &amp;&amp; (p-&gt;scx.flags &amp; SCX_TASK_QUEUED))
+-		SCX_CALL_OP(SCX_KF_REST, stopping, p, true);
++		SCX_CALL_OP_TASK(SCX_KF_REST, stopping, p, true);
+
+ 	/*
+ 	 * If we're being called from put_prev_task_balance(), balance_scx() may
+@@ -2377,8 +2434,8 @@ static int select_task_rq_scx(struct task_struct *p, int prev_cpu, int wake_flag
+ 		WARN_ON_ONCE(*ddsp_taskp);
+ 		*ddsp_taskp = p;
+
+-		cpu = SCX_CALL_OP_RET(SCX_KF_ENQUEUE | SCX_KF_SELECT_CPU,
+-				      select_cpu, p, prev_cpu, wake_flags);
++		cpu = SCX_CALL_OP_TASK_RET(SCX_KF_ENQUEUE | SCX_KF_SELECT_CPU,
++					   select_cpu, p, prev_cpu, wake_flags);
+ 		*ddsp_taskp = NULL;
+ 		if (ops_cpu_valid(cpu, "from ops.select_cpu()"))
+ 			return cpu;
+@@ -2411,8 +2468,8 @@ static void set_cpus_allowed_scx(struct task_struct *p,
+ 	 * designation pointless. Cast it away when calling the operation.
+ 	 */
+ 	if (SCX_HAS_OP(set_cpumask))
+-		SCX_CALL_OP(SCX_KF_REST, set_cpumask, p,
+-			    (struct cpumask *)p-&gt;cpus_ptr);
++		SCX_CALL_OP_TASK(SCX_KF_REST, set_cpumask, p,
++				 (struct cpumask *)p-&gt;cpus_ptr);
+ }
+
+ static void reset_idle_masks(void)
+@@ -2647,7 +2704,7 @@ static void scx_ops_enable_task(struct task_struct *p)
+ 	 */
+ 	set_task_scx_weight(p);
+ 	if (SCX_HAS_OP(enable))
+-		SCX_CALL_OP(SCX_KF_REST, enable, p);
++		SCX_CALL_OP_TASK(SCX_KF_REST, enable, p);
+ 	scx_set_task_state(p, SCX_TASK_ENABLED);
+
+ 	if (SCX_HAS_OP(set_weight))
+@@ -2801,7 +2858,7 @@ static void reweight_task_scx(struct rq *rq, struct task_struct *p, int newprio)
+
+ 	set_task_scx_weight(p);
+ 	if (SCX_HAS_OP(set_weight))
+-		SCX_CALL_OP(SCX_KF_REST, set_weight, p, p-&gt;scx.weight);
++		SCX_CALL_OP_TASK(SCX_KF_REST, set_weight, p, p-&gt;scx.weight);
+ }
+
+ static void prio_changed_scx(struct rq *rq, struct task_struct *p, int oldprio)
+@@ -2817,8 +2874,8 @@ static void switching_to_scx(struct rq *rq, struct task_struct *p)
+ 	 * different scheduler class. Keep the BPF scheduler up-to-date.
+ 	 */
+ 	if (SCX_HAS_OP(set_cpumask))
+-		SCX_CALL_OP(SCX_KF_REST, set_cpumask, p,
+-			    (struct cpumask *)p-&gt;cpus_ptr);
++		SCX_CALL_OP_TASK(SCX_KF_REST, set_cpumask, p,
++				 (struct cpumask *)p-&gt;cpus_ptr);
+ }
+
+ static void switched_from_scx(struct rq *rq, struct task_struct *p)
+--
+2.45.2
+
+
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../patch-study/patch-20.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../patch-study/patch-22.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../patch-study/patch-20.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../patch-study/patch-22.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
